@@ -5,6 +5,7 @@ import akka.pattern.ask
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.util.Try
 
 
 case object OkElection
@@ -26,11 +27,13 @@ trait Elector extends Actor{
       if(callerId < id) {
         sender ! OkElection
       } else {
-        /*
-        Future.sequence(higherIds.map{ ref =>
+        val futures = higherIds.map{ ref =>
           ask(ref, LeaderElection(id))(5.seconds)
-        })
-        */
+        }
+        Thread.sleep(5005)
+        val higherUpExists = futures.flatMap{_.value.map(_.isSuccess)}.foldLeft(false)(_ || _)
+        if (higherUpExists)
+
       }
     }
     case IWonElection(winnerId) => {
