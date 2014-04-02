@@ -6,16 +6,6 @@ import scala.collection.mutable
 /**
  * @author John Sullivan
  */
-trait SubclassableActor extends Actor {
-
-  private var receivers:mutable.ArrayBuffer[Actor.Receive] = new mutable.ArrayBuffer[Actor.Receive]()
-
-  def addReceiver(rec:Actor.Receive) {
-    receivers += rec
-  }
-
-  final def receive:Actor.Receive = receivers.reduce(_ orElse _)
-}
 
 case class TimedMessage(timestamp:Vector[Int], message:Any)
 
