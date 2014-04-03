@@ -15,7 +15,7 @@ case class VectorClock(val hostId: String, val clock: immutable.Map[String, Int]
  * This clock manager helps decide when to send and receive message according to the causal ordering scheme
  * @param hostId
  */
-class ClockManager(val hostId: String) {
+class TimeKeeper(val hostId: String) {
   private val myClock = new mutable.HashMap[String, Int].withDefaultValue(0)
 
   private val clockQueue = new ArrayBuffer[VectorClock]
@@ -88,8 +88,8 @@ object LocalTester {
 
     val rand = new Random
 
-    val n1 = new ClockManager("1")
-    val n2 = new ClockManager("2")
+    val n1 = new TimeKeeper("1")
+    val n2 = new TimeKeeper("2")
 
     (0 until 100).foreach({ _ =>
       if (rand.nextBoolean){
@@ -108,9 +108,9 @@ object LocalTester {
 
     // Now test with 3 people and late messages
 
-    val p1 = new ClockManager("P1")
-    val p2 = new ClockManager("P2")
-    val p3 = new ClockManager("P3")
+    val p1 = new TimeKeeper("P1")
+    val p2 = new TimeKeeper("P2")
+    val p3 = new TimeKeeper("P3")
 
     testClockEquivalence(p1.getClock, p2.getClock)
     testClockEquivalence(p1.getClock, p3.getClock)
@@ -148,7 +148,4 @@ object LocalTester {
     println("P3: " + p3.getClock.toString)
 
   }
-
-
-
 }
