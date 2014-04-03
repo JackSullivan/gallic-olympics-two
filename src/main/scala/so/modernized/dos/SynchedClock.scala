@@ -6,17 +6,24 @@ import scala.collection.mutable
 /**
  * @author John Sullivan
  */
-case object Synchronize
-case class TimeSubmission(myTime:Long)
-case class TimeOffset(sentTime:Long, trueTime:Long)
 
+case object StartSynch
+case class Synchronize(startTime:Long)
+case class TimeSubmission(startTime:Long, myTime:Long)
+
+case class TimeOffset(offset:Long)
 trait SynchManager {
-  def numOfClocks:Int
+  def numSlaves = slaves.size
+  def leader:ActorRef
+  def slaves:Iterable[ActorRef]
+
+  def synchronize() {
+    leader ! StartSynch
+  }
 }
 
 trait SynchedClock extends SubclassableActor {
   def manager:SynchManager
-  def leader:ActorRef
 
   private var offset:Long = 0L // The different between my clock and the agreed clock time
   private var submittedTimes = mutable.ArrayBuffer[(ActorRef, Long)]()
@@ -28,27 +35,36 @@ trait SynchedClock extends SubclassableActor {
     System.currentTimeMillis() + offset
   }
 
-  addReceiver{
-    case Synchronize => {
-      val timeStamp = System.currentTimeMillis()
-      println("%s received Synchronize at %d".format(context.self, timeStamp))
-      leader ! TimeSubmission(timeStamp)
+  addReceiver {
+    case StartSynch => {
+      assert(context.self == manager.leader)
+      println("%s received StartSynch".format(context.self))
+      val synchStart = System.currentTimeMillis()
+      manager.slaves.foreach(_ ! Synchronize(synchStart))
     }
-    case TimeOffset(sentTime, trueTime) =>
+    case Synchronize(synchStart) => {
       val localTime = System.currentTimeMillis()
-      val travelTime = (localTime - sentTime)/2 // this is half of the round trip time to respond, taken as the transit time that the original message took to arrive
-      offset = (sentTime - trueTime) + travelTime
-      println("%s received %s at local time %d. Calculated travel time at %d. Calculated offset at %d".format(context.self, TimeOffset(sentTime, trueTime), localTime, travelTime, offset))
-    case TimeSubmission(submittedTime) => {
-      println("%s received a %s from %s at local time %d".format(context.self, TimeSubmission(submittedTime), sender, System.currentTimeMillis()))
-      submittedTimes += sender -> submittedTime
-      if(submittedTimes.size == manager.numOfClocks) {
-        println("%s has all relevant time submissions at %d".format(context.self, System.currentTimeMillis()))
-        val trueTime = submittedTimes.map(_._2).sum / submittedTimes.size
-        submittedTimes.foreach{ case(synchee, syncheeTime) =>
-          synchee ! TimeOffset(syncheeTime, trueTime)
+      println("%s received %s from %s at local time: %d".format(context.self, Synchronize(synchStart), sender, localTime))
+      sender ! TimeSubmission(synchStart, localTime)
+    }
+    case TimeSubmission(synchStart, slaveTime) => {
+      val localTime = System.currentTimeMillis()
+      println("%s received %s from %s at local time: %d".format(context.self, TimeSubmission(synchStart, slaveTime), sender, localTime))
+      val travelTime = (synchStart - localTime)/2
+      submittedTimes += sender -> (slaveTime - travelTime)
+      if(submittedTimes.size == manager.numSlaves) {
+        println("%s received all submissions".format(context.self))
+        val unifiedTime = (submittedTimes.foldLeft(0L)(_ + _._2) + synchStart) / (submittedTimes.size + 1)
+        submittedTimes.foreach { case(slave, adjSlaveTime) =>
+          slave ! TimeOffset(unifiedTime - adjSlaveTime)
         }
+        offset = unifiedTime - synchStart
       }
+    }
+    case TimeOffset(remOffset) => {
+      val localTime = System.currentTimeMillis()
+      println("%s received %s from %s at local time: %d".format(context.self, TimeOffset(remOffset), sender, localTime))
+      offset = remOffset
     }
   }
 }
@@ -56,31 +72,30 @@ trait SynchedClock extends SubclassableActor {
 
 object SynchTest {
   object TestSynchManager extends SynchManager {
-    val numOfClocks = 3
+    var leader:ActorRef = null
+    val slaves = mutable.ArrayBuffer[ActorRef]()
   }
-  class TestSynch(var leader:ActorRef = null) extends SynchedClock {
+  class TestSynch extends SynchedClock {
     val manager = TestSynchManager
-
-    if(leader == null) {
-      leader = context.self
-    }
-
-  }
-
-  object TestSynch{
-    def apply(leader:ActorRef) = Props(new TestSynch(leader))
   }
 
   def main(args:Array[String]) {
     val system = ActorSystem.apply("synchtest")
 
 
-    val leader = system.actorOf(TestSynch(null), "leader")
-    val s1 = system.actorOf(TestSynch(leader), "s1")
-    val s2 = system.actorOf(TestSynch(leader), "s2")
+    val leader = system.actorOf(Props[TestSynch], "leader")
+    val s1 = system.actorOf(Props[TestSynch], "s1")
+    val s2 = system.actorOf(Props[TestSynch], "s2")
 
-    leader ! Synchronize
-    s1 ! Synchronize
-    s2 ! Synchronize
+    TestSynchManager.leader = leader
+    TestSynchManager.slaves += s1
+    TestSynchManager.slaves += s2
+
+    TestSynchManager.synchronize()
+
+
+    Thread.sleep(10000)
+
+    system.shutdown()
   }
 }
