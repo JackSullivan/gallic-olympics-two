@@ -123,12 +123,32 @@ object LocalTester {
     p3.receiveClock(e2)                           // p3: (0, 0, 0)
     p3.receiveClock(e1)                           // p3: (1, 1, 0)
 
+    val e3 = p1.recordLocalEvent                  // p1: (2, 1, 0)
+    val e4 = p2.recordLocalEvent                  // p2: (1, 2, 0)
+    val e5 = p3.recordLocalEvent                  // p3: (1, 1, 1)
+
+    p1.receiveClock(e5)                           // p1: (2, 1, 1)
+    p1.receiveClock(e4)                           // p1: (2, 2, 1)
+
+    val e6 = p1.recordLocalEvent                  // p1: (3, 2, 1)
+
+    p2.receiveClock(e6)
+    p2.receiveClock(e5)
+    p2.receiveClock(e3)                           // p2: (3, 2, 1)
+
+    p3.receiveClock(e6)
+    p3.receiveClock(e4)
+    p3.receiveClock(e3)                           // p3: (3, 2, 1)
+
     testClockEquivalence(p1.getClock, p2.getClock)
     testClockEquivalence(p1.getClock, p3.getClock)
 
-
-
+    println("P1: " + p1.getClock.toString)
+    println("P2: " + p2.getClock.toString)
+    println("P3: " + p3.getClock.toString)
 
   }
+
+
 
 }
