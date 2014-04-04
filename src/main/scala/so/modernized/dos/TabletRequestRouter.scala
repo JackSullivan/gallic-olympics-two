@@ -1,7 +1,10 @@
 package so.modernized.dos
 
-import akka.actor.{Terminated, Props, Actor}
-import akka.routing.{RoundRobinRoutingLogic, Router, ActorRefRoutee}
+import akka.actor._
+import akka.routing.RoundRobinRoutingLogic
+import akka.routing.Router
+import akka.actor.Terminated
+import akka.routing.ActorRefRoutee
 
 /**
  * The TabletRequestRouter uses a round-robin system
@@ -39,5 +42,39 @@ class TabletRequestWorker extends Actor {
   def receive: Actor.Receive = {
     case teamMessage:TeamMessage => teamPath.tell(teamMessage, sender())
     case eventMessage:EventMessage => eventPath.tell(eventMessage, sender())
+  }
+}
+
+case class ClientRequest(request:AnyRef)
+case class DBRequest(message:AnyRef, finalRoutee:ActorRef, serverRoutee:ActorRef)
+case class DBResponse(response:AnyRef, finalRoutee:ActorRef, serverRoutee:ActorRef)
+case class TimestampedResponse(timestamp:Long, response:AnyRef)
+
+/**
+ * The FrontEndServer trait routes read requests from table clients (and from Cacofonix
+ * to the backend DBServer process, wrapping in such a way as to preserve information about
+ * both the server through which it came and the original client to route it to.
+ */
+trait FrontEndServer extends SubclassableActor {
+  def dbPath:ActorRef
+
+  def getTimestamp:Long
+
+  addReceiver {
+    case ClientRequest(message) => dbPath ! DBRequest(message, sender(), context.self)
+    case DBResponse(response, routee, _) => routee ! TimestampedResponse(getTimestamp, response)
+  }
+}
+
+trait DBServer extends SubclassableActor {
+  def teams:ActorRef
+  def events:ActorRef
+
+  addReceiver{
+    case DBRequest(request, routee, server) => request match {
+      case tm:TeamMessage => teams ! DBRequest(tm, routee, server)
+      case em:EventMessage => events ! DBRequest(em, routee, server)
+    }
+    case DBResponse(response, routee, serverRoutee) => serverRoutee ! DBResponse(response, routee, serverRoutee)
   }
 }
