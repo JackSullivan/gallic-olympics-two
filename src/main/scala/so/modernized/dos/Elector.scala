@@ -105,7 +105,6 @@ object ElectorTest {
       case "show winner" => sender ! winner.get
       case "call election" => sender ! getLeader
       case "get id" => sender ! id
-      case "get election in progress" => sender ! electionInProgress
     }
   }
   object TestElector {
