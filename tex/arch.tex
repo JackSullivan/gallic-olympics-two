@@ -1,0 +1,202 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{enumerate}
+\usepackage{fullpage}
+\begin{document}
+\title{LAB 1}
+\author{Jack Sullivan and Ari Kobren}
+\maketitle
+
+\section{Olympics Main Components}
+As per the assignment, our architecture is built around three central
+components: one \emph{DBServer} and two \emph{FrontEndServer}s. These
+components are responsible for handling most of the requests from all
+of clients.
+
+To make it easy to interact with these three components, we have also
+included a \emph{RequestRouter}.  This is a single router node that
+accepts requests from all clients and evenly distributes the requests
+to the two \emph{FrontEndServer}s (effectively load balancing). The
+load balacing tries to follow a round-robin task assignment schedule.
+
+Our message passing system is built as a hierarchy. We use a top-level
+\emph{Olympics} class for organization.  This class doesn't hold any
+information about teams or scores but establishes the system in which
+all messages are passed.  In particular, the system established by the
+\emph{Olympics} class includes 5 child \emph{actors}: a
+\emph{TeamRoster}, an \emph{EventRoster}, a
+\emph{TabletRequestRouter}, a \emph{CacofonixListener} and an
+\emph{EventSubscription}.
+
+\subsection{Vector Clocks}
+We implement causally ordered messages using vector clocks.  To do
+this, both front-end servers and the back-end server are able to
+accept \emph{SendInOrder} messages (each of which wraps a single
+\emph{payload} message).  When a server receives a \emph{SendInOrder}
+message, the server updates its clock, extracts the payload and wraps
+it, along with it's own vector clock, in a new \emph{TimedMessage}
+message.  The \emph{TimedMessage} is then broadcast to all of the
+other servers.
+
+When a server receives a \emph{TimedMessage} it adds that message to
+its internal message queue. After that, the server begins trying to
+process all of the messages in its queue.  To maintain a causal
+ordering, the server, $s_l$, will only process a \emph{TimedMessage},
+$\mathcal{M}$, from server, $s_r$, if
+\begin{align*}
+ \forall i \ne r \mathcal{C}[i] \ge \mathcal{M}[i] \\
+ \mathcal{C}[r] = \mathcal{M}[r] - 1
+\end{align*}
+
+This means that a server will only process a message if it has
+received all other messages from that sender and at least all messages
+that sender has received from everyone else.  If the server cannot
+find a valid message to process, it waits for the next message. In
+this way, we make the assumption that the servers will all receive all
+messages (however, the messages may be out of causal order).
+
+To process a message, a server simply unwraps the payload of a
+\emph{TimedMessage} and processes it normally.
+
+\subsection{EventRoster}
+The \emph{EventRoster} is very similar to the \emph{TeamRoster}: the
+\emph{EventRoster} stores a list of the events taking place at the
+olympics and is able to communicate with a number \emph{Event}
+classes.  Wwhen it receives an \emph{EventMessage}, it routes the
+message to the corresponding \emph{Event}.  It also instructs that
+\emph{Event} to send any reply to the initial sender of the
+\emph{EventMessage}.
+
+\subsection{TabletRequestRouter}
+The \emph{TabletRequestRouter} serves as a router that helps spread
+client request to various workers.  At initialization, the
+\emph{TabletRequestRouter} spawns 5 \emph{TabletRequestWorker}s to
+which it routes the messages that it receives.  These workers are
+asynchronous and allow our system to handle more simultaneous
+requests.  Each \emph{TabletReequestWorker} is able to communicate
+with the \emph{EventRoster} and \emph{TeamRoster}. If one of the
+\emph{TabletRequestWorkers} dies, the \emph{TabletRequestRouter} will
+spawn a new one in its place. The \emph{TabletRequestRouter} routes
+messages to the workers using round-robin-scheduling.
+
+\subsection{CacofonixListener}
+\emph{CacofonixListener} is very similar to a
+\emph{TabletRequestWorker}: it also stores is able to communicate with
+the \emph{TeamRoster} and the \emph{EventRoster}.  The difference
+between the \emph{CacofonixListener} and a \emph{TabletRequestWorker}
+is that only a special class--\emph{CacofonixClient}--is able to
+communicate with the \emph{CacofonixListener}.
+
+\subsection{EventSubscription}
+Each event has a corresponding \emph{EventSubscription} class. An
+\emph{EventSubscription} class is responsible for keeping track of who
+has subscribed to that event. When an \emph{EventSubscription} class
+receives an \emph{EventScore} update message, it sends corresponding
+update messages to each of its subscribers.  When it receives a
+\emph{Subscription} message, it stores the sender in its list of
+subscribers.
+
+\section{System Runtime Workflow}
+To begin running our system, we run the \emph{Olympics} class.  As
+described above, this class spawns the \emph{TeamRoster},
+\emph{EventRoster}, \emph{TabletRequestRouter},
+\emph{CacofonixListener} and \emph{EventSubscription} actors.  Once
+the system is in place, we start $n$ \emph{TabletClients}.  These
+clients are equipped with the \emph{getScore}, \emph{getMedalTally}
+and \emph{registerClient} methods. When a client calls its
+\emph{getScore} or \emph{getMedalTally} methods a corresponding
+\emph{EventMessage} containing an event name and a \emph{GetScore}
+object or a \emph{TeamMessage} containing a team name and a
+\emph{GetMedalTally} object is sent to the \emph{TabletRequestRouter}
+(which is then forwarded appropriately).  Upon receiving a message, each
+client prints the corresponding message to the screen.  When calling
+the \emph{registerClient} method, a \emph{Subscribe} message is
+generated for a particular event and then sent to the
+\emph{Subscription} actor.  From then on, whenever there are updates
+made to that event, an update will be sent back to the client.  In
+this way, our system can accomodate a client-pull and server-push
+architectures.
+
+In addition to the $n$ \emph{TabletClients}, we also spawn a
+\emph{CacofonixClient} actor.  This client is equipped with the
+\emph{setScore} and \emph{incrementMedalTally} methods.  Calling
+either of these methods generates either an \emph{EventMessage}
+containing an event name and a \emph{SetEventScore} object or a
+\emph{TeamMessage} containing a team name and an
+\emph{IncrementMedals} object.  Messages from the
+\emph{CacofonixClient} are always sent to the \emph{CacofonixListener}
+as described above.
+
+\section{Design, Bottlenecks and Potential Improvements}
+We tried separate concerns as much as possible so that implementation
+and debugging would be simplest.  As such, each our actors only
+handles a few message types (and we a few, extremely simple
+messge types).  We also wanted to make our system as
+asynchronous as possible so we made sure to include the
+\emph{TabletRequestRouter} and \emph{TableRequestWorkers} which can
+process messages in parallel.
+
+The main bottleneck we see in our system are our \emph{TeamRoster} and
+\emph{EventRoster} classes.  This is because, all messages having to
+do with any team or any event has to go through one of these classes.
+We could improve our system by making both the \emph{TeamRoster} and
+\emph{EventRoster} into routers (special Akka classes) so that they
+could handle messages in parallel.  Additionally, we'd need to
+implement a custom routing strategy that would look at the content of
+the message and route the message appropriately (e.g. if handling a
+\emph{GetScore} message for event $A$, the \emph{EventRoster} would
+route the message to the event class representing event $A$).
+
+We could also improve our system further by making it more fault
+tolerant.  Instead of simple watching the \emph{TabletRequestWorkers}
+and respawning them upon failure, we could watch classes like the
+\emph{TabletRequestRouters}, events and teams.
+
+\section{Results}
+In our first experiment, we ran our code using 1, 5 and 10 clients
+each with a rate of one request per .5 seconds and measured the min,
+max and average response times.
+
+\begin{tabular}{c|c|c|c}
+  NUM CLIENTS & MIN & MAX & AVG \\
+  \hline
+  1  & 0.01s & 0.02s & 0.01385s \\
+  5  & 0.01s & 0.03s & 0.01342s \\
+  10 & 0.01s & 0.12s & 0.01475s \\
+\end{tabular}
+
+In our second experiment we ran our code using 5 clients with .01, .1
+and 0.4 seconds between requests and measured the min, max and
+average response times.
+
+
+\begin{tabular}{c|c|c|c}
+  REQUEST FREQ. & MIN & MAX & AVG \\
+  \hline
+  0.01s & 0.01s & 0.3s  & 0.11667s \\
+  0.1s  & 0.01s & 0.07s & 0.01266s \\
+  0.4s  & 0.01s & 0.06s & 0.01369s \\
+\end{tabular}
+
+As we observe, adding more clients seems to increase average
+latency.  However, there is no real difference between having 1 client
+and 5 clients.  We hypothesize that adding a tremendous number of
+clients would have a serious effect on the latency.
+
+Also, we observe that having the clients make requests at higher
+frequencies severely affects the latency.  Again, there is not much
+difference between a request rate of 0.4s and 0.1s however, when we
+increase the request rate by an order of magnitude we see that the
+average latency per request increases substantially.
+
+\section{Software}
+We've built our system on top of the Akka \emph{actors} library.  This
+library provides a hierarchical message passing architecture for the
+Scala programming language.
+
+\section{How to Run}
+
+Our system is divided up into three scripts. \texttt{run.sh} is for the server, which receives requests from tablets and updates from cacofonix. It is currently hardcoded to run on \texttt{elnux4.cs.umass.edu}. \texttt{cacofonix.sh} is for the update process. It is currently set up to randomly generate reasonable updates to the system. The destination is coded in the script, but can be changed. Similarly \texttt{rand_tablet.sh} will create a table process and randomly send requests for updates.
+
+\end{document}
