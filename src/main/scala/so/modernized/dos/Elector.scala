@@ -3,7 +3,7 @@ package so.modernized.dos
 import akka.actor._
 import akka.pattern.ask
 import scala.concurrent.duration._
-import scala.concurrent.Await
+import scala.concurrent.{Future, Await}
 import scala.collection.mutable
 import com.typesafe.config.ConfigFactory
 import akka.util.Timeout
@@ -91,13 +91,14 @@ trait Elector extends SubclassableActor {
       }
       println("%s sending LeaderElection to %d higher ids".format(context.self, higherIds.size))
       if(higherIds.size == 0) {
+        context.self ! TheLeader(id)
         lowerIds.foreach { elector =>
           elector ! IWonElection(id)
         }
       } else {
 
         val futures = higherIds.map{ ref =>
-          ask(ref, LeaderElection(id))(5.seconds)
+          Await.ready(ask(ref, LeaderElection(id))(5.seconds), 5.seconds).asInstanceOf[Future[OkElection.type]]
         }
         val higherUpExists = futures.flatMap{_.value.map(_.isSuccess)}.foldLeft(false)(_ || _)
         if (!higherUpExists) {
