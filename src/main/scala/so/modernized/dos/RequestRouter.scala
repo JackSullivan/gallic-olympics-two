@@ -53,11 +53,15 @@ object RequestWorker {
 
 class RequestWorker(val servers:IndexedSeq[ActorRef]) extends Actor {
   val rand = new Random()
-  def routee = servers(rand.nextInt(servers.size))
+  def routee() = servers(rand.nextInt(servers.size))
   
   def receive: Actor.Receive = {
     case m:DBWrite => servers.head.tell(m, sender())
-    case message => routee.tell(message, sender())    
+    case message:AnyRef => {
+      val r = routee()
+      println("%s received %s from %s. Routing to %s".format(context.self, message, sender(), r))
+      r.tell(ClientRequest(message), sender())
+    }
   }
 }
 
