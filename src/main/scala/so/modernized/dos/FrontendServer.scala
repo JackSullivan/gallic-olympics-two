@@ -10,6 +10,7 @@ import scala.concurrent.Await
  * @author John Sullivan
  */
 case class ClientRequest(request:AnyRef)
+case class DBWrite(message:AnyRef)
 case class DBRequest(message:AnyRef, finalRoutee:ActorRef, serverRoutee:ActorRef)
 case class DBResponse(response:AnyRef, finalRoutee:ActorRef, serverRoutee:ActorRef)
 case class TimestampedResponse(timestamp:Long, response:AnyRef)
@@ -25,6 +26,7 @@ trait FrontendServer extends SubclassableActor {
   def getSynchedTime:Long
 
   addReceiver {
+    case m:DBWrite => dbPath ! m
     case ClientRequest(message) => dbPath ! DBRequest(message, sender(), context.self)
     case DBResponse(response, routee, _) => routee ! TimestampedResponse(getSynchedTime, response)
   }
@@ -43,7 +45,7 @@ object FrontendProcess {
 
     implicit val timeout = Timeout(600.seconds)
 
-    val system = ActorSystem(s"frontend-$id", ConfigFactory.load("server"))
+    val system = ActorSystem(s"frontend-$id", ConfigFactory.load(s"clientserver$id"))
 
     val db = Await.result(system.actorSelection(remote + "/user/db").resolveOne(), 600.seconds)
     val franchise = Await.result(system.actorSelection(remote + "/user/franchise").resolveOne(), 600.seconds)

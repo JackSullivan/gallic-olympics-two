@@ -18,20 +18,20 @@ class CacofonixClient(olympicsAddress: Address) {
 
   implicit val timeout = Timeout(600.seconds)
 
-  val system = ActorSystem("client", ConfigFactory.load("client"))
+  val system = ActorSystem("client", ConfigFactory.load("cacofonix"))
   val remote = olympicsAddress.toString
 
   println(s"Connecting to remote server at $remote")
 
   def shutdown() {system.shutdown()}
 
-  private val listener = Await.result(system.actorSelection(remote + "/user/cacofonix").resolveOne(), 600.seconds)
+  private val listener = Await.result(system.actorSelection(remote + "/user/router").resolveOne(), 600.seconds)
 
   def setScore(event:String, score:String) {
-    listener ! EventMessage(event, SetEventScore(score, System.currentTimeMillis()))
+    listener ! DBWrite(EventMessage(event, SetEventScore(score, System.currentTimeMillis())))
   }
 
   def incrementMedalTally(team:String, medalType:MedalType) {
-    listener ! TeamMessage(team, IncrementMedals(medalType, System.currentTimeMillis()))
+    listener ! DBWrite(TeamMessage(team, IncrementMedals(medalType, System.currentTimeMillis())))
   }
 }

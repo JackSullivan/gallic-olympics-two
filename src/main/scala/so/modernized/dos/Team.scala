@@ -49,10 +49,17 @@ class TeamRoster(teamNames:Iterable[String]) extends Actor {
   val teams = teamNames.map(name => name -> new Team(name)).toMap
 
   override def receive: Actor.Receive = {
+    case DBWrite(TeamMessage(teamName, IncrementMedals(medalType, initTime))) => teams.get(teamName) match {
+      case Some(team) => {
+        println("Updated %s Medal count by %s".format(team.name, medalType.toString))
+        team.increment(medalType)
+      }
+      case None => println("Received invalid score update from Cacofonix: %s".format(teamName))
+    }
     case DBRequest(TeamMessage(teamName, message), routee, server) => teams.get(teamName) match {
         case Some(team) => message match {
           case GetMedalTally(initTime) => sender() ! DBResponse(team.tally(initTime), routee, server)
-          case IncrementMedals(medal, _) => team.increment(medal)
+          //case IncrementMedals(medal, _) => team.increment(medal)
         }
         case None => sender() ! DBResponse(UnknownTeam(teamName, message.initTime), routee, server)
     }
