@@ -4,7 +4,7 @@
 \usepackage{enumerate}
 \usepackage{fullpage}
 \begin{document}
-\title{LAB 1}
+\title{LAB 2}
 \author{Jack Sullivan and Ari Kobren}
 \maketitle
 
@@ -27,11 +27,19 @@ task assignment schedule.  The \emph{RequestRouter} can also accept
 submission).  When it receives a \emph{DBWrite} message, the router
 directly forwards the messages to one of the \emph{FrontEndServer}s.
 
+As before, we used an actor model to managed asynchronous concurrency across multiple processes. To keep the various different concerns of the two front-end servers and the database separate from one another, we extended the basic actor model with a \emph{SubclassableActor} that allowed us to implement Leader Election, Clock Synchronization, Vector Clocks, and primary duties of each class separately. The structure allows us to define partial functions on each trait that dispatch only for certain messages. A final class that has all of the desired functionality can then be achieved by mixing all of the traits together. This design also allows us to separately test each component.
+
+Within each of the leader election, clock synchronization, and vector clock subcomponents care has been taken to make their communication as asynchronous as possible to ensure that each component can continue to process reads and writes from clients and cacofonix while elections or synchronizations are in progress.
+
 \subsection{Leader Election}
 \label{subsec:leader}
 
+We implemented the bully algorithm for leader election. Leader selection is always implicit, and elections are initiated by members. When an actor that implements \emph{Elector} receives a \emph{GetLeader} message, it will either return its leader (if one is exists and is accessible) or initiate an election to determine a new one. In either case when the election is complete the actor that originally sent \emph{GetLeader} (along with the rest of the electorate) will receive a \emph{TheLeader} message. This message carries the id of the newly elected leader. Within the election process, the message passing occurs simply almost exactly according to the pseudocode of the algorithm. In order to resolve requests for all higher and lower ids, all of the electors have a reference to a \emph{Franchise} which store all of the \emph{Elector}s associated with it. 
+
 \subsection{Clock Synchronization}
 \label{subsec:sync}
+
+We used Berkley clock synchronization, using the above election process to select a leader. To participate in clock synchronization a class must implement \emph{SynchedClock}. When a \emph{SynchedClock} method is asked to synch itself it first sends itself a message to determine its leader (\emph{GetLeader}). Once the election is complete, all of the electorate will receive a \emph{TheLeader} message. This message serves as a queue for the \emph{SynchedClock} that is the leader to attempt to sync the clocks. Once the sync is in progress the leader will only accept \emph{TimeSubmission}s from slaves with a matching sync start timestamp. To ensure that the systems do not move out of phase the backend server process attempts to re-sync the clocks every minute. 
 
 \subsection{Vector Clocks}
 \label{subsec:vector}
@@ -164,5 +172,6 @@ library.  This library provides a hierarchical message passing
 architecture for the Scala programming language.
 
 \section{How to Run}
+Instructions on how to run are found in the README file in the project root.
 
 \end{document}
