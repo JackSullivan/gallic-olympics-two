@@ -45,10 +45,17 @@ class EventRoster(eventNames:Iterable[String]) extends Actor {
   val events = eventNames.map(name => name -> new Event(name)).toMap
 
   def receive: Actor.Receive = {
+    case DBWrite(EventMessage(eventName, SetEventScore(newScore, _))) => events.get(eventName) match {
+      case Some(event) => {
+        println("Updated %s score to %s".format(event.name, newScore))
+        event.setScore(newScore)
+      }
+      case None => println("Received invalid score update from Cacofonix: %s".format(eventName))
+    }
     case DBRequest(EventMessage(eventName, message), routee, server) => events.get(eventName) match {
       case Some(event) => message match {
         case GetEventScore(initTime) => sender ! DBResponse(event.getScore(initTime), routee, server)
-        case SetEventScore(newScore, _) => event.setScore(newScore)
+        //case SetEventScore(newScore, _) => event.setScore(newScore)
       }
       case None => sender ! DBResponse(UnknownEvent(eventName, message.initTime), routee, server)
     }

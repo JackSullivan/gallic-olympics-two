@@ -56,24 +56,24 @@ class RequestWorker(val servers:IndexedSeq[ActorRef]) extends Actor {
   def routee = servers(rand.nextInt(servers.size))
   
   def receive: Actor.Receive = {
-    case wm:WriteMessage => servers.head.tell(wm, sender())
+    case m:DBWrite => servers.head.tell(m, sender())
     case message => routee.tell(message, sender())    
   }
 }
 
 object RequestRouterProcess {
   def main(args:Array[String]) {
-    val serverIds = args(0).split("|").toIndexedSeq
-    val remote = args(1)
+    val serverAddresses = args(0).split('|').toIndexedSeq
     implicit val timeout = Timeout(600.seconds)
 
 
     val system = ActorSystem("router", ConfigFactory.load("router"))
 
-    val servers = serverIds.map { id =>
-      Await.result(system.actorSelection(remote + s"/user/frontend-$id").resolveOne(), 600.seconds)
+    val servers = serverAddresses.map { serverAddress =>
+      println("Attempting to connect to %s".format(serverAddress))
+      Await.result(system.actorSelection(serverAddress + s"/user/frontend").resolveOne(), 600.seconds)
     }
 
-    val router = system.actorOf(RequestRouter(servers))
+    val router = system.actorOf(RequestRouter(servers), "router")
   }
 }

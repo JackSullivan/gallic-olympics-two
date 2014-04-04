@@ -50,11 +50,11 @@ class TabletPrinter extends Actor {
       case UnknownEvent(eventName, initTime) => {
         val latency = (System.currentTimeMillis() - initTime)/1000.0
 
-        println("There are not %s competitions at these olympics. Timestamp %d. Response took %.2f secs".format(eventName, timestamp, latency))
+        println("There are not %s competitions at these olympics. Timestamped %d. Response took %.2f secs".format(eventName, timestamp, latency))
       }
       case UnknownTeam(teamName, initTime) => {
         val latency = (System.currentTimeMillis() - initTime)/1000.0
-        println("%s is not participating in these olympics. Timestamp %d. Response took %.2f secs".format(teamName, timestamp, latency))
+        println("%s is not participating in these olympics. Timestamped %d. Response took %.2f secs".format(teamName, timestamp, latency))
       }
     }
   }
@@ -100,11 +100,11 @@ object TabletClient {
 //    olympics.shutdown()
   }
 
-  def randomTabletClient(teams:IndexedSeq[String], events:IndexedSeq[String], address:Address, freq:Long)(implicit rand:Random) {
+  def randomTabletClient(teams:IndexedSeq[String], events:IndexedSeq[String], address:Address, freq:Long, times:Int = 20)(implicit rand:Random) {
     def sample(strs:IndexedSeq[String]):String = strs(rand.nextInt(strs.size))
 
     val tablet = new TabletClient(address)
-    (0 to rand.nextInt(20)).foreach { _ =>
+    (0 to times).foreach { _ =>
       Thread.sleep(freq)
       rand.nextInt(2) match {
         case 0 => {

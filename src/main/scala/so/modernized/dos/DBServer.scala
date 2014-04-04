@@ -12,6 +12,10 @@ trait DBServer extends SubclassableActor {
   def events:ActorRef
 
   addReceiver{
+    case DBWrite(write) => write match {
+      case tm:TeamMessage => teams ! DBWrite(tm)
+      case em:EventMessage => events ! DBWrite(em)
+    }
     case DBRequest(request, routee, server) => request match {
       case tm:TeamMessage => teams ! DBRequest(tm, routee, server)
       case em:EventMessage => events ! DBRequest(em, routee, server)
@@ -32,8 +36,8 @@ class ConcreteDB(teamNames:Iterable[String], eventNames:Iterable[String], val id
 object DBProcess {
 
   def main(args:Array[String]) {
-    val teams = args(0).split("|")
-    val events = args(1).split("|")
+    val teams = args(0).split('|')
+    val events = args(1).split('|')
     val id = args(2).toInt
 
     val system = ActorSystem("db", ConfigFactory.load("db"))
