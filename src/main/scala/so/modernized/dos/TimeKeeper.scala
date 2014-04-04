@@ -13,12 +13,9 @@ case class VectorClock(val hostId: String, val clock: immutable.Map[String, Int]
 
 /**
  * This clock manager helps decide when to send and receive message according to the causal ordering scheme
- * @param hostId
  */
-class TimeKeeper(val hostId: String) {
+trait ClockManager {
   private val myClock = new mutable.HashMap[String, Int].withDefaultValue(0)
-
-  private val clockQueue = new ArrayBuffer[VectorClock]
 
   /**
    * Test whether or not a clock is ready to be processed -- a clock is only ready to be process when
@@ -27,22 +24,11 @@ class TimeKeeper(val hostId: String) {
    * @param vectorClock
    * @return
    */
-  private def isNextLogicalClock(vectorClock: VectorClock) = {
+  def isNextLogicalClock(vectorClock: VectorClock) = {
     vectorClock.clock.forall({ case (id, count) => {
       if (id != vectorClock.hostId) myClock(id) >= count
       else count == myClock(id) + 1
     }})
-  }
-
-  private def processQueue(idxToCheck: Int): Unit = {
-    if (idxToCheck < clockQueue.length && isNextLogicalClock(clockQueue(idxToCheck))) {
-      addClock(clockQueue(idxToCheck))
-      clockQueue.remove(idxToCheck)
-      processQueue(0)
-    }
-
-    else if (idxToCheck < clockQueue.length && !isNextLogicalClock(clockQueue(idxToCheck)))
-      processQueue(idxToCheck + 1)
   }
 
   /**
@@ -50,7 +36,7 @@ class TimeKeeper(val hostId: String) {
    * in the case of causally ordered multicasting, this should only update 1 count (the count of the sender)
    * @param vectorClock
    */
-  private def addClock(vectorClock: VectorClock): Unit = {
+  def addToClock(vectorClock: VectorClock): Unit = {
     vectorClock.clock.foreach({case (id, count) => {
 
       /* the only count that should be greater than the local clock is that of the sender*/
@@ -60,92 +46,10 @@ class TimeKeeper(val hostId: String) {
     }})
   }
 
-  /**
-   * Since we are causally ordering the messages, they should be added to an internal queue and then processed
-   * @param vectorClock
-   */
-  def receiveClock(vectorClock: VectorClock) = {
-    clockQueue += vectorClock
-    processQueue(clockQueue.length - 1)   // start checking the queue from the most recennt message
-  }
+  def getClock(myId: String): VectorClock = new VectorClock(myId, myClock.toMap)
 
-  def getClock: VectorClock = new VectorClock(hostId, myClock.toMap)
-
-  def recordLocalEvent: VectorClock = {
-    myClock.update(hostId, myClock(hostId) + 1)
-    getClock
-  }
-
-}
-
-object LocalTester {
-
-  def testClockEquivalence(c1: VectorClock, c2: VectorClock): Unit = {
-    assert(c1.clock.forall({ case (id, count) => c2.clock(id) == count}) && c2.clock.forall({ case (id, count) => c1.clock(id) == count }))
-  }
-
-  def main(args: Array[String]) = {
-
-    val rand = new Random
-
-    val n1 = new TimeKeeper("1")
-    val n2 = new TimeKeeper("2")
-
-    (0 until 100).foreach({ _ =>
-      if (rand.nextBoolean){
-        n2.receiveClock(n1.recordLocalEvent)
-      }
-
-      if (rand.nextBoolean){
-        n1.receiveClock(n2.recordLocalEvent)
-      }
-
-      testClockEquivalence(n1.getClock, n2.getClock)
-    })
-
-    println("N1 CLOCK: " + n1.getClock.clock.toString())
-    println("N2 CLOCK: " + n2.getClock.clock.toString())
-
-    // Now test with 3 people and late messages
-
-    val p1 = new TimeKeeper("P1")
-    val p2 = new TimeKeeper("P2")
-    val p3 = new TimeKeeper("P3")
-
-    testClockEquivalence(p1.getClock, p2.getClock)
-    testClockEquivalence(p1.getClock, p3.getClock)
-
-    val e1 = p1.recordLocalEvent                  // e1: (1, 0, 0)
-    p2.receiveClock(e1)                           // p2: (1, 0, 0)
-
-    val e2 = p2.recordLocalEvent                  // e2: (1, 1, 0)
-    p1.receiveClock(e2)                           // p1: (1, 1, 0)
-    p3.receiveClock(e2)                           // p3: (0, 0, 0)
-    p3.receiveClock(e1)                           // p3: (1, 1, 0)
-
-    val e3 = p1.recordLocalEvent                  // p1: (2, 1, 0)
-    val e4 = p2.recordLocalEvent                  // p2: (1, 2, 0)
-    val e5 = p3.recordLocalEvent                  // p3: (1, 1, 1)
-
-    p1.receiveClock(e5)                           // p1: (2, 1, 1)
-    p1.receiveClock(e4)                           // p1: (2, 2, 1)
-
-    val e6 = p1.recordLocalEvent                  // p1: (3, 2, 1)
-
-    p2.receiveClock(e6)
-    p2.receiveClock(e5)
-    p2.receiveClock(e3)                           // p2: (3, 2, 1)
-
-    p3.receiveClock(e6)
-    p3.receiveClock(e4)
-    p3.receiveClock(e3)                           // p3: (3, 2, 1)
-
-    testClockEquivalence(p1.getClock, p2.getClock)
-    testClockEquivalence(p1.getClock, p3.getClock)
-
-    println("P1: " + p1.getClock.toString)
-    println("P2: " + p2.getClock.toString)
-    println("P3: " + p3.getClock.toString)
-
+  def updateClock(senderId: String): VectorClock = {
+    myClock.update(senderId, myClock(senderId) + 1)
+    getClock(senderId)
   }
 }
