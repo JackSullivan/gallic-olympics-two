@@ -1,7 +1,10 @@
 package so.modernized.dos
 
-import akka.actor.{Terminated, Props, Actor}
-import akka.routing.{RoundRobinRoutingLogic, Router, ActorRefRoutee}
+import akka.actor._
+import akka.routing.RoundRobinRoutingLogic
+import akka.routing.Router
+import akka.actor.Terminated
+import akka.routing.ActorRefRoutee
 
 /**
  * The TabletRequestRouter uses a round-robin system
@@ -39,5 +42,34 @@ class TabletRequestWorker extends Actor {
   def receive: Actor.Receive = {
     case teamMessage:TeamMessage => teamPath.tell(teamMessage, sender())
     case eventMessage:EventMessage => eventPath.tell(eventMessage, sender())
+  }
+}
+
+case class ClientRequest(request:AnyRef)
+case class DBRequest(message:AnyRef, routee:ActorRef)
+case class DBResponse(response:AnyRef, routee:ActorRef)
+
+/**
+ * The FrontEndServer trait routes read requests from
+ */
+trait FrontEndServer extends SubclassableActor {
+  def dbPath:ActorRef
+
+  addReceiver {
+    case ClientRequest(message) => dbPath ! DBRequest(message, sender())
+    case DBResponse(response, routee) => routee ! response
+  }
+}
+
+trait DBServer extends SubclassableActor {
+  def teams:ActorRef
+  def events:ActorRef
+
+  addReceiver{
+    case DBRequest(request, routee) => request match {
+      case tm:TeamMessage => teams ! DBRequest(tm, routee)
+      case em:EventMessage => events ! DBRequest(em, routee)
+    }
+    case DBResponse(response, routee) => routee ! response
   }
 }

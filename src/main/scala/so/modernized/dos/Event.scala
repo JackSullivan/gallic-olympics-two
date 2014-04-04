@@ -21,22 +21,13 @@ case class UnknownEvent(eventName: String, initTime:Long)
  * correct message. When it receives a score update it forwards the
  * update to the appropriate EventSubscription record.
  */
-object Event {
-  def props(eventName:String):Props = Props(new Event(eventName))
-}
+class Event(val name:String) {
+  private var score:String = ""
 
-
-class Event(val name:String) extends Actor {
-  val subscriberPath = context.system./("subscriberRoster")
-  var score:String = ""
-
-  def receive: Actor.Receive = {
-    case SetEventScore(newScore, initTime) => {
-      score = newScore
-      context.system.actorSelection(subscriberPath./(name)) ! EventScore(name, score, initTime)
-    }
-    case GetEventScore(initTime) => sender() ! EventScore(name, score, initTime)
+  def setScore(newScore:String) {
+    score = newScore
   }
+  def getScore(initTime:Long) = EventScore(name, score, initTime)
 }
 
 /**
@@ -46,20 +37,20 @@ class Event(val name:String) extends Actor {
  * requester to that effect.
  */
 object EventRoster {
-  def apply(events:Iterable[String]):Props = Props(new EventRoster(events))
+  def apply(eventNames:Iterable[String]):Props = Props(new EventRoster(eventNames))
 }
 
-class EventRoster(events:Iterable[String]) extends Actor {
+class EventRoster(eventNames:Iterable[String]) extends Actor {
 
-  events.foreach{ eventName =>
-    context.actorOf(Event.props(eventName), eventName)
-  }
+  val events = eventNames.map(name => name -> new Event(name)).toMap
 
   def receive: Actor.Receive = {
-    case EventMessage(eventName, message) => { context.child(eventName) match {
-      case Some(event) => event.tell(message, sender())
-      case None => sender ! UnknownEvent(eventName, message.initTime)
-    }
+    case DBRequest(EventMessage(eventName, message), routee) => events.get(eventName) match {
+      case Some(event) => message match {
+        case GetEventScore(initTime) => sender ! DBResponse(event.getScore(initTime), routee)
+        case SetEventScore(newScore, _) => event.setScore(newScore)
+      }
+      case None => sender ! DBResponse(UnknownEvent(eventName, message.initTime), routee)
     }
   }
 }

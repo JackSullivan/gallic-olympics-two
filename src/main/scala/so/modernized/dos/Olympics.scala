@@ -1,6 +1,6 @@
 package so.modernized.dos
 
-import akka.actor.{PoisonPill, Props, Actor, ActorSystem}
+import akka.actor._
 import com.typesafe.config.ConfigFactory
 
 /**
@@ -28,14 +28,14 @@ class Olympics(teams:Iterable[String], events:Iterable[String]) {
 }
 
 /**
- * Listener class to receive messages from the Cacofonix process and route
+ * Listener trait to receive messages from the Cacofonix process and route
  * them to the appropriate Roster
  */
-class CacofonixListener extends Actor {
-  val teamPath = context.system.actorSelection(context.system./("teams"))
-  val eventPath = context.system.actorSelection(context.system./("events"))
+trait CacofonixListener extends SubclassableActor {
+  def teamPath:ActorSelection
+  def eventPath:ActorSelection
 
-  def receive: Actor.Receive = {
+  addReceiver {
     case teamMessage:TeamMessage => {
       println("cacofonix listener received a team message: %s" format teamMessage)
       teamPath ! teamMessage

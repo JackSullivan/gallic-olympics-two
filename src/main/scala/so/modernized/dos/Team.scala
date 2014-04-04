@@ -18,31 +18,19 @@ case class MedalTally(team:String, gold:Int, silver:Int, bronze:Int, initTime:Lo
  * read and write to them. It relies on TeamRoster to ensure that
  * it receive the appropriate messages.
  */
-object Team {
-  def props(name:String): Props = Props(new Team(name))
-}
+class Team(val name:String) {
+  private var gold:Int = 0
+  private var silver:Int = 0
+  private var bronze:Int = 0
 
-class Team(val name:String) extends Actor {
-  var gold:Int = 0
-  var silver:Int = 0
-  var bronze:Int = 0
+  def tally(initTime:Long) = MedalTally(name, gold, silver, bronze, initTime)
 
-  override def receive: Actor.Receive = {
-    case IncrementMedals(medalType, time) => medalType match {
-      case Gold => {
-        gold += 1
-        println ("one more gold for %s! That makes %d".format(name, gold))
-      }
-      case Silver => {
-        silver += 1
-        println ("one more silver for %s! That makes %d".format(name, silver))
-      }
-      case Bronze => {
-        bronze += 1
-        println ("one more bronze for %s! That makes %d".format(name, bronze))
-      }
+  def increment(mType:MedalType) {
+    mType match {
+      case Gold => gold += 1
+      case Silver => silver += 1
+      case Bronze => bronze += 1
     }
-    case GetMedalTally(time) => sender ! MedalTally(name, gold, silver, bronze, time)
   }
 }
 
@@ -56,16 +44,17 @@ object TeamRoster{
   def apply(teams:Iterable[String]):Props = Props(new TeamRoster(teams))
 }
 
-class TeamRoster(teams:Iterable[String]) extends Actor {
+class TeamRoster(teamNames:Iterable[String]) extends Actor {
 
-  teams.foreach{ teamName =>
-    context.actorOf(Team.props(teamName), teamName)
-  }
+  val teams = teamNames.map(name => name -> new Team(name)).toMap
 
   override def receive: Actor.Receive = {
-    case TeamMessage(teamName, message) => context.child(teamName) match {
-        case Some(team) => team.tell(message, sender())
-        case None => sender() ! UnknownTeam(teamName, message.initTime)
+    case DBRequest(TeamMessage(teamName, message), routee) => teams.get(teamName) match {
+        case Some(team) => message match {
+          case GetMedalTally(initTime) => sender() ! DBResponse(team.tally(initTime), routee)
+          case IncrementMedals(medal, _) => team.increment(medal)
+        }
+        case None => sender() ! DBResponse(UnknownTeam(teamName, message.initTime), routee)
     }
   }
 }
