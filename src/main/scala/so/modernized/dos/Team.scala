@@ -5,7 +5,7 @@ import akka.actor.{Props, Actor}
 trait TeamMessageType {
   def initTime:Long
 }
-case class IncrementMedals(medalType:MedalType, initTime:Long) extends TeamMessageType
+case class IncrementMedals(medalType:MedalType, initTime:Long) extends TeamMessageType with WriteMessage
 case class GetMedalTally(initTime:Long) extends TeamMessageType
 
 case class TeamMessage(teamName:String, message:TeamMessageType)

@@ -5,7 +5,7 @@ import akka.actor.{Props, Actor}
 trait EventMessageType {
   def initTime:Long
 }
-case class SetEventScore(newScore:String, initTime:Long) extends EventMessageType
+case class SetEventScore(newScore:String, initTime:Long) extends EventMessageType with WriteMessage
 case class GetEventScore(initTime:Long) extends EventMessageType
 
 case class EventMessage(eventName:String, message:EventMessageType)

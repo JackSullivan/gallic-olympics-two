@@ -13,7 +13,7 @@ class Olympics(teams:Iterable[String], events:Iterable[String]) {
   system.actorOf(TeamRoster(teams), "teams")
   system.actorOf(EventRoster(events), "events")
   system.actorOf(Props[CacofonixListener], "cacofonix")
-  system.actorOf(Props[TabletRequestRouter], "router")
+  system.actorOf(Props[RequestRouter], "router")
   system.actorOf(EventSubscriptions(events), "subscriberRoster")
 
   def shutdown() {
