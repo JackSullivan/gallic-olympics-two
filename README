@@ -8,3 +8,5 @@ The system is broken up into multiple processes, each of which can be run with a
 - start-router.sh: This script sets up a routing process that assigns incoming requests from both the Tablets and Cacofonix to a frontend server for processing.
 - start-cacofonix.sh: This script sets up a Cacofonix instance that sends messages to the Router with score and medal updates.
 - rand-tablet.sh: This script takes three arguments, the first is the number of tablets to spawn, the second is the frequency (in milliseconds) with which to query for new information, and the third is how many times to do so before shutting down. The output is written to a file.
+
+The scripts are sensitive to the working directory and the location of the jar file. they scripts themselves must be run from inside the bin/ directory.

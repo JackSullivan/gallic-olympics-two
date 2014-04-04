@@ -27,8 +27,14 @@ trait FrontendServer extends SubclassableActor {
 
   addReceiver {
     case m:DBWrite => dbPath ! m
-    case ClientRequest(message) => dbPath ! DBRequest(message, sender(), context.self)
-    case DBResponse(response, routee, _) => routee ! TimestampedResponse(getSynchedTime, response)
+    case ClientRequest(message) => {
+      println("%s received ClientRequest(%s) from %s".format(context.self, message, sender()))
+      dbPath ! DBRequest(message, sender(), context.self)
+    }
+    case DBResponse(response, routee, _) => {
+      println("%s received %s from %s, routing to %s".format(context.self, response, sender(), routee))
+      routee ! TimestampedResponse(getSynchedTime, response)
+    }
   }
 }
 

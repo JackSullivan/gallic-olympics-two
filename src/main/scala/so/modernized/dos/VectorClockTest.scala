@@ -14,7 +14,7 @@ object VectorClockTest {
   }
 
   class ActorWithVectorClock(val id: Int, val vcManager: ActorRef) extends VectorClockableActor {
-    addReceiver{ case SpecialMessage(x) => null}
+    addReceiver{ case SpecialMessage(x) => Unit}
   }
 
   object ActorWithVectorClockPlus {

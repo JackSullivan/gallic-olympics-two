@@ -29,6 +29,7 @@ class SynchManager extends Actor {
     case AddSynchMember => {
       members += sender()
       sender() ! WelcomeToSynch
+      sender() ! GetLeader
       println("added %s to sync management".format(sender()))
     }
       /*
