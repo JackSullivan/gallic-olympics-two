@@ -28,10 +28,13 @@ submission).  When it receives a \emph{DBWrite} message, the router
 directly forwards the messages to one of the \emph{FrontEndServer}s.
 
 \subsection{Leader Election}
+\label{subsec:leader}
 
 \subsection{Clock Synchronization}
+\label{subsec:sync}
 
 \subsection{Vector Clocks}
+\label{subsec:vector}
 We implement causally ordered messages using vector clocks.  To do
 this, both front-end servers and the back-end server are able to
 accept \emph{SendInOrder} messages (each of which wraps a single
@@ -66,69 +69,57 @@ With our modular design, we were able to easily incorporate components
 (messages and classes) that we built for Lab 1.  Specifically, we used
 (and slightly modified): \emph{EventRoster}, \emph{TeamRoster},
 \emph{Event}, \emph{EventMessage}, \emph{CacofonixListener},
-\emph{EventSubscription}, \emph{GetMedalTally}, \emph{TabletClients}
+\emph{EventSubscription}, \emph{MedalTally}, \emph{TabletClients}
 and \emph{EventScore}.
 
 \section{System Runtime Workflow}
-We start our system by running two
-\emph{FrontEndServer}s and the \emph{DBServer} all on different processes.
-We also start a process for \emph{CacafonixClient} and multiple
-clients.
+We start our system by running two \emph{FrontEndServer}s and the
+\emph{DBServer} all on different processes.  We also start a process
+for \emph{CacafonixClient} and $n$ \emph{TabletClients}.  When the system
+fully comes up, we run leader election (Section ~\ref{subsec:leader})
+and clock synchronization (Section ~\ref{subsec:sync}).
 
- As
-described above, this class spawns the \emph{TeamRoster},
-\emph{EventRoster}, \emph{TabletRequestRouter},
-\emph{CacofonixListener} and \emph{EventSubscription} actors.  Once
-the system is in place, we start $n$ \emph{TabletClients}.  These
-clients are equipped with the \emph{getScore}, \emph{getMedalTally}
-and \emph{registerClient} methods. When a client calls its
-\emph{getScore} or \emph{getMedalTally} methods a corresponding
-\emph{EventMessage} containing an event name and a \emph{GetScore}
-object or a \emph{TeamMessage} containing a team name and a
-\emph{GetMedalTally} object is sent to the \emph{TabletRequestRouter}
-(which is then forwarded appropriately).  Upon receiving a message, each
-client prints the corresponding message to the screen.  When calling
-the \emph{registerClient} method, a \emph{Subscribe} message is
-generated for a particular event and then sent to the
-\emph{Subscription} actor.  From then on, whenever there are updates
-made to that event, an update will be sent back to the client.  In
-this way, our system can accomodate a client-pull and server-push
-architectures.
-
-In addition to the $n$ \emph{TabletClients}, we also spawn a
-\emph{CacofonixClient} actor.  This client is equipped with the
-\emph{setScore} and \emph{incrementMedalTally} methods.  Calling
-either of these methods generates either an \emph{EventMessage}
-containing an event name and a \emph{SetEventScore} object or a
-\emph{TeamMessage} containing a team name and an
-\emph{IncrementMedals} object.  Messages from the
-\emph{CacofonixClient} are always sent to the \emph{CacofonixListener}
-as described above.
+The clients continually send \emph{EventScore} and \emph{MedalTally}
+requests as in the previous assignment. As before, clients receive
+responses to their requests and print them out. The difference is now
+all of these requests are sent to the \emph{RequestRouter} which
+forwards the requests to the \emph{FrontEndServer}s who timestamp the
+messages (i.e. wrap in \emph{TimedMessage} objects).  As described
+above (Section ~\ref{subsec:vector}) the messages are causally ordered
+using vector clocks.  When the \emph{DBServer} receives these
+requests, it orders them and keeps every hundreth for the raffle.
+\emph{CacafonixClient} sends updates periodically as in the previous
+assignment.
 
 \section{Design, Bottlenecks and Potential Improvements}
-We tried separate concerns as much as possible so that implementation
-and debugging would be simplest.  As such, each our actors only
-handles a few message types (and we a few, extremely simple
-messge types).  We also wanted to make our system as
-asynchronous as possible so we made sure to include the
-\emph{TabletRequestRouter} and \emph{TableRequestWorkers} which can
-process messages in parallel.
+Like before, we modularized our design to make debuggin easier.  This
+also makes our system more resistent to failures.
 
-The main bottleneck we see in our system are our \emph{TeamRoster} and
-\emph{EventRoster} classes.  This is because, all messages having to
-do with any team or any event has to go through one of these classes.
-We could improve our system by making both the \emph{TeamRoster} and
-\emph{EventRoster} into routers (special Akka classes) so that they
-could handle messages in parallel.  Additionally, we'd need to
-implement a custom routing strategy that would look at the content of
-the message and route the message appropriately (e.g. if handling a
-\emph{GetScore} message for event $A$, the \emph{EventRoster} would
-route the message to the event class representing event $A$).
+That said, with more time, we'd make our system more fault
+tolerant.  Although leader election occurs when the nodes initially
+come up, we could improve our system by setting other nodes to watch
+in case some of the nodes go down.  Then new nodes could be respawned
+and leader election/clock synchronization run again.
 
-We could also improve our system further by making it more fault
-tolerant.  Instead of simple watching the \emph{TabletRequestWorkers}
-and respawning them upon failure, we could watch classes like the
-\emph{TabletRequestRouters}, events and teams.
+Additionally, we could improve our system by making new clients join
+the system and register themsleves with the routers.  This would
+complicate things significatly: vector clock causal order would be
+more compex (to introduce a new node midway through); additionally,
+there would be more logic (i.e. handshaking to make sure clients were
+connected properly to the rest of the system.  Because there are more
+independent components in our implementation of Lab 2 (as opposed to
+Lab 1) this would be a bit more complicate.
+
+Lastly, we'd like to connect more of our components through routers
+with special routing logic (i.e. round-robin) than with pointers. We
+noticed that passing messages through routers is much more efficient
+and failure tolerant than when we simply pass them independently from
+node to node (as we do in some of our transactions).
+
+One bottleneck in our overall design is that the
+\emph{FrontEndServer}s are single threaded.  This means that they have
+to reason about their vector clocks and respond to requests on a single
+thread.  We could improve our implementation by multithreading our servers.
 
 \section{Results}
 In our first experiment, we ran our code using 1, 5 and 10 clients
@@ -168,12 +159,10 @@ increase the request rate by an order of magnitude we see that the
 average latency per request increases substantially.
 
 \section{Software}
-We've built our system on top of the Akka \emph{actors} library.  This
-library provides a hierarchical message passing architecture for the
-Scala programming language.
+Like Lab 1, we've built our system on top of the Akka \emph{actors}
+library.  This library provides a hierarchical message passing
+architecture for the Scala programming language.
 
 \section{How to Run}
-
-Our system is divided up into three scripts. \texttt{run.sh} is for the server, which receives requests from tablets and updates from cacofonix. It is currently hardcoded to run on \texttt{elnux4.cs.umass.edu}. \texttt{cacofonix.sh} is for the update process. It is currently set up to randomly generate reasonable updates to the system. The destination is coded in the script, but can be changed. Similarly \texttt{rand_tablet.sh} will create a table process and randomly send requests for updates.
 
 \end{document}
