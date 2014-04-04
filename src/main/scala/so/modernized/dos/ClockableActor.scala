@@ -25,12 +25,14 @@ trait ClockableActor extends Actor with ClockManager {
 
   final def receive: Actor.Receive = {
     case Send(id, m, ref) => {
-      updateClock(id)
-      val t = new TimedMessage(getClock(id), m)
+      println("SENDING: " + m + " MY CLOCK IS CURRENTLY " + getClock.clock.toString())
+      val t = new TimedMessage(getClock, m)
       ref ! t
     }
 
     case TimedMessage(clock, message) => {
+      println("RECEIVING: " + message + " UPDATING " + getClock.clock.toString() + " WITH " + clock.clock.toString())
+      updateClock(clock.hostId)
       timedMessageQueue += TimedMessage(clock, message)
       processMessageQueue(timedMessageQueue.length - 1)
     }

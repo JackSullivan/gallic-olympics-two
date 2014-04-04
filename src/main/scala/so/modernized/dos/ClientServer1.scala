@@ -22,15 +22,15 @@ object ClientServer1Test {
     val clientServer2Address = Address("akka.tcp", "clientserver", "127.0.0.1", 2555)
 
     val system = ActorSystem("clientserver", ConfigFactory.load("clientserver1.conf"))
-    val clientListener = system.actorOf(Props[ActorWithVectorClock], "clientserver")
+    val clientServer = system.actorOf(Props[ActorWithVectorClock], "clientserver")
 
     val dbserver = system.actorSelection(dbaddress.toString + "/user/dbserver")
     val clientServer2 = system.actorSelection(clientServer2Address.toString + "/user/clientserver")
 
 
     def broadcastMessage(m: String) = {
-      clientListener ! new Send(id, m, dbserver)
-      clientListener ! new Send(id, m, clientServer2)
+      clientServer ! new Send(id, m, dbserver)
+      clientServer ! new Send(id, m, clientServer2)
     }
 
   }
