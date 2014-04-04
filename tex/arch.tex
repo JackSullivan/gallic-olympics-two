@@ -8,7 +8,7 @@
 \author{Jack Sullivan and Ari Kobren}
 \maketitle
 
-\section{Olympics Main Components}
+\section{Main Components}
 As per the assignment, our architecture is built around three central
 components: one \emph{DBServer} and two \emph{FrontEndServer}s. These
 components are responsible for handling most of the requests from all
@@ -16,18 +16,20 @@ of clients.
 
 To make it easy to interact with these three components, we have also
 included a \emph{RequestRouter}.  This is a single router node that
-accepts requests from all clients and evenly distributes the requests
-to the two \emph{FrontEndServer}s (effectively load balancing). The
-load balacing tries to follow a round-robin task assignment schedule.
+accepts requests from all clients and evenly distributes them. The
+\emph{RequestRouter} supervises 5 \emph{RequestWorkers} each of whom
+is arbitrarily assigned a \emph{FrontEndServer}. When the
+\emph{RequestRouter} receives a standard message, it distributes the
+message to one of its workers who forwards it to the appropriately
+(effectively load balancing). The load balacing follows a round-robin
+task assignment schedule.  The \emph{RequestRouter} can also accept
+\emph{DBWrite} messages from the \emph{CacafonixClient} (see previous
+submission).  When it receives a \emph{DBWrite} message, the router
+directly forwards the messages to one of the \emph{FrontEndServer}s.
 
-Our message passing system is built as a hierarchy. We use a top-level
-\emph{Olympics} class for organization.  This class doesn't hold any
-information about teams or scores but establishes the system in which
-all messages are passed.  In particular, the system established by the
-\emph{Olympics} class includes 5 child \emph{actors}: a
-\emph{TeamRoster}, an \emph{EventRoster}, a
-\emph{TabletRequestRouter}, a \emph{CacofonixListener} and an
-\emph{EventSubscription}.
+\subsection{Leader Election}
+
+\subsection{Clock Synchronization}
 
 \subsection{Vector Clocks}
 We implement causally ordered messages using vector clocks.  To do
@@ -45,7 +47,7 @@ process all of the messages in its queue.  To maintain a causal
 ordering, the server, $s_l$, will only process a \emph{TimedMessage},
 $\mathcal{M}$, from server, $s_r$, if
 \begin{align*}
- \forall i \ne r \mathcal{C}[i] \ge \mathcal{M}[i] \\
+ \forall i \ne r \quad \mathcal{C}[i] \ge \mathcal{M}[i] \\
  \mathcal{C}[r] = \mathcal{M}[r] - 1
 \end{align*}
 
@@ -59,46 +61,21 @@ messages (however, the messages may be out of causal order).
 To process a message, a server simply unwraps the payload of a
 \emph{TimedMessage} and processes it normally.
 
-\subsection{EventRoster}
-The \emph{EventRoster} is very similar to the \emph{TeamRoster}: the
-\emph{EventRoster} stores a list of the events taking place at the
-olympics and is able to communicate with a number \emph{Event}
-classes.  Wwhen it receives an \emph{EventMessage}, it routes the
-message to the corresponding \emph{Event}.  It also instructs that
-\emph{Event} to send any reply to the initial sender of the
-\emph{EventMessage}.
-
-\subsection{TabletRequestRouter}
-The \emph{TabletRequestRouter} serves as a router that helps spread
-client request to various workers.  At initialization, the
-\emph{TabletRequestRouter} spawns 5 \emph{TabletRequestWorker}s to
-which it routes the messages that it receives.  These workers are
-asynchronous and allow our system to handle more simultaneous
-requests.  Each \emph{TabletReequestWorker} is able to communicate
-with the \emph{EventRoster} and \emph{TeamRoster}. If one of the
-\emph{TabletRequestWorkers} dies, the \emph{TabletRequestRouter} will
-spawn a new one in its place. The \emph{TabletRequestRouter} routes
-messages to the workers using round-robin-scheduling.
-
-\subsection{CacofonixListener}
-\emph{CacofonixListener} is very similar to a
-\emph{TabletRequestWorker}: it also stores is able to communicate with
-the \emph{TeamRoster} and the \emph{EventRoster}.  The difference
-between the \emph{CacofonixListener} and a \emph{TabletRequestWorker}
-is that only a special class--\emph{CacofonixClient}--is able to
-communicate with the \emph{CacofonixListener}.
-
-\subsection{EventSubscription}
-Each event has a corresponding \emph{EventSubscription} class. An
-\emph{EventSubscription} class is responsible for keeping track of who
-has subscribed to that event. When an \emph{EventSubscription} class
-receives an \emph{EventScore} update message, it sends corresponding
-update messages to each of its subscribers.  When it receives a
-\emph{Subscription} message, it stores the sender in its list of
-subscribers.
+\subsection{Previously Built Components}
+With our modular design, we were able to easily incorporate components
+(messages and classes) that we built for Lab 1.  Specifically, we used
+(and slightly modified): \emph{EventRoster}, \emph{TeamRoster},
+\emph{Event}, \emph{EventMessage}, \emph{CacofonixListener},
+\emph{EventSubscription}, \emph{GetMedalTally}, \emph{TabletClients}
+and \emph{EventScore}.
 
 \section{System Runtime Workflow}
-To begin running our system, we run the \emph{Olympics} class.  As
+We start our system by running two
+\emph{FrontEndServer}s and the \emph{DBServer} all on different processes.
+We also start a process for \emph{CacafonixClient} and multiple
+clients.
+
+ As
 described above, this class spawns the \emph{TeamRoster},
 \emph{EventRoster}, \emph{TabletRequestRouter},
 \emph{CacofonixListener} and \emph{EventSubscription} actors.  Once
