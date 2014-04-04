@@ -85,15 +85,14 @@ trait VectorClockableActor extends SubclassableActor {
 
   addReceiver {
     case SendInOrder(m, ref) => {
-      println("SENDING: " + m + " MY CLOCK IS CURRENTLY " + getClock.clock.toString())
+//      println(id + ": SENDING: " + m + " MY CLOCK IS CURRENTLY " + getClock.clock.toString())
       updateClock(id)
       val t = new TimedMessage(getClock, m)
-      getClockees.map(_ ! t)
+      getClockees.filter(_ != context.self).map(_ ! t)
     }
 
     case TimedMessage(clock, message) => {
-      println("RECEIVING: " + message + " UPDATING " + getClock.clock.toString() + " WITH " + clock.clock.toString())
-      updateClock(clock.hostId)
+//      println(id + ": RECEIVING: " + message + " UPDATING " + getClock.clock.toString() + " WITH " + clock.clock.toString())
       timedMessageQueue += TimedMessage(clock, message)
       processMessageQueue(timedMessageQueue.length - 1)
     }
