@@ -1,0 +1,10 @@
+How to Run
+----------
+
+The system is broken up into multiple processes, each of which can be run with a script. it is currently configured to expect all processes to run on the same machine, but this can be changed without a need to update functionality. All scripts are located in the bin/ directory, and should be started in order.
+
+- start-db.sh: This script should be run first, it kicks off the backend database, which also manages governors for the election, synching, and vector clock processes. This process also periodically sends messages to re-sync the clocks.
+- start-frontend-1.sh and start-frontend-2.sh: These scripts startup the frontend servers and establish a connection with the backend database.
+- start-router.sh: This script sets up a routing process that assigns incoming requests from both the Tablets and Cacofonix to a frontend server for processing.
+- start-cacofonix.sh: This script sets up a Cacofonix instance that sends messages to the Router with score and medal updates.
+- rand-tablet.sh: This script takes three arguments, the first is the number of tablets to spawn, the second is the frequency (in milliseconds) with which to query for new information, and the third is how many times to do so before shutting down. The output is written to a file.
