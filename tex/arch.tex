@@ -21,7 +21,7 @@ accepts requests from all clients and evenly distributes them. The
 is arbitrarily assigned a \emph{FrontEndServer}. When the
 \emph{RequestRouter} receives a standard message, it distributes the
 message to one of its workers who forwards it to the appropriately
-(effectively load balancing). The load balacing follows a round-robin
+(effectively load balancing). The load balancing follows a round-robin
 task assignment schedule.  The \emph{RequestRouter} can also accept
 \emph{DBWrite} messages from the \emph{CacafonixClient} (see previous
 submission).  When it receives a \emph{DBWrite} message, the router
@@ -95,13 +95,13 @@ forwards the requests to the \emph{FrontEndServer}s who timestamp the
 messages (i.e. wrap in \emph{TimedMessage} objects).  As described
 above (Section ~\ref{subsec:vector}) the messages are causally ordered
 using vector clocks.  When the \emph{DBServer} receives these
-requests, it orders them and keeps every hundreth for the raffle.
+requests, it orders them and keeps every hundredth for the raffle.
 \emph{CacafonixClient} sends updates periodically as in the previous
 assignment.
 
 \section{Design, Bottlenecks and Potential Improvements}
-Like before, we modularized our design to make debuggin easier.  This
-also makes our system more resistent to failures.
+Like before, we modularized our design to make debugging easier.  This
+also makes our system more resistant to failures.
 
 That said, with more time, we'd make our system more fault
 tolerant.  Although leader election occurs when the nodes initially
@@ -110,9 +110,9 @@ in case some of the nodes go down.  Then new nodes could be respawned
 and leader election/clock synchronization run again.
 
 Additionally, we could improve our system by making new clients join
-the system and register themsleves with the routers.  This would
-complicate things significatly: vector clock causal order would be
-more compex (to introduce a new node midway through); additionally,
+the system and register themselves with the routers.  This would
+complicate things significantly: vector clock causal order would be
+more complex (to introduce a new node midway through); additionally,
 there would be more logic (i.e. handshaking to make sure clients were
 connected properly to the rest of the system.  Because there are more
 independent components in our implementation of Lab 2 (as opposed to
@@ -159,7 +159,7 @@ There is a significant difference in average latency (2.4x) when we
 increase from 5 to 10 clients.  there is less of a relative difference
 when we increase to 10 clients. Surprisingly, the minimum latency
 decreases in these runs. We hypothesize that this could be due to
-other things occuring on the network while running our tests or some
+other things occurring on the network while running our tests or some
 noise related to our leader elections.
 
 Also, we observe that having the clients make requests at higher
@@ -177,5 +177,12 @@ architecture for the Scala programming language.
 
 \section{How to Run}
 Instructions on how to run are found in the README file in the project root.
+
+\section{Testing} % (fold)
+\label{sec:testing}
+
+We unit tested the system by writing code to demonstrate that each actor correctly responded to each of the possible messages it could receive and by checking to ensure delivery between actors. In particular, we tested each of the leader election, clock synchronization and vector clocks separately and have included example test run outputs in the zip file.
+
+% section testing (end)
 
 \end{document}

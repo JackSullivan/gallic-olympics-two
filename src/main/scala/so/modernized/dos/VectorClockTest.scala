@@ -46,11 +46,11 @@ object VectorClockTest {
     dbServer.client1 ! SendInOrder(new SpecialMessage("MESSAGE 3 FROM 1"), null)
     dbServer.client2 ! SendInOrder(new SpecialMessage("MESSAGE 2 FROM 2"), null)
     dbServer.client2 ! SendInOrder(new SpecialMessage("MESSAGE 3 FROM 2"), null)
-    dbServer.client1 ! SendInOrder(new SpecialMessage("message 5"), null)
-    dbServer.client1 ! SendInOrder(new SpecialMessage("message 6"), null)
-    dbServer.client2 ! SendInOrder(new SpecialMessage("message 7"), null)
-    dbServer.client1 ! SendInOrder(new SpecialMessage("message 8"), null)
-    dbServer.client2 ! SendInOrder(new SpecialMessage("message 9"), null)
+    dbServer.client1 ! SendInOrder(new SpecialMessage("MESSAGE 4 FROM 1"), null)
+    dbServer.client1 ! SendInOrder(new SpecialMessage("MESSAGE 5 FROM 1"), null)
+    dbServer.client2 ! SendInOrder(new SpecialMessage("MESSAGE 4 FROM 2"), null)
+    dbServer.client1 ! SendInOrder(new SpecialMessage("MESSAGE 6 FROM 1"), null)
+    dbServer.client2 ! SendInOrder(new SpecialMessage("MESSAGE 5 FROM 2"), null)
     Thread.sleep(5000)
     dbServer.shutdown
 
