@@ -31,10 +31,10 @@ trait FrontendServer extends SubclassableActor {
 }
 
 object ConcreteFrontend{
-  def apply(dbPath:ActorRef, id:Int, franchise:ActorRef, manager:ActorRef) = Props(new ConcreteFrontend(dbPath, id, franchise, manager))
+  def apply(dbPath:ActorRef, id:Int, franchise:ActorRef, manager:ActorRef, vcManager:ActorRef) = Props(new ConcreteFrontend(dbPath, id, franchise, manager, vcManager))
 }
 
-class ConcreteFrontend(val dbPath:ActorRef, val id:Int, val franchise:ActorRef, val manager:ActorRef) extends FrontendServer with Elector with SynchedClock
+class ConcreteFrontend(val dbPath:ActorRef, val id:Int, val franchise:ActorRef, val manager:ActorRef, val vcManager:ActorRef) extends FrontendServer with Elector with SynchedClock with VectorClockableActor
 
 object FrontendProcess {
   def main(args:Array[String]) {
@@ -48,8 +48,9 @@ object FrontendProcess {
     val db = Await.result(system.actorSelection(remote + "/user/db").resolveOne(), 600.seconds)
     val franchise = Await.result(system.actorSelection(remote + "/user/franchise").resolveOne(), 600.seconds)
     val manager = Await.result(system.actorSelection(remote + "/user/sync-manager").resolveOne(), 600.seconds)
+    val vcManager = Await.result(system.actorSelection(remote + "/user/vc-manager").resolveOne(), 600.seconds)
 
-    val frontend = system.actorOf(ConcreteFrontend(db, id, franchise, manager))
+    val frontend = system.actorOf(ConcreteFrontend(db, id, franchise, manager, vcManager), "frontend")
   }
 }
 

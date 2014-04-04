@@ -6,6 +6,10 @@ import akka.routing.Router
 import akka.actor.Terminated
 import akka.routing.ActorRefRoutee
 import scala.util.Random
+import com.typesafe.config.ConfigFactory
+import scala.concurrent.Await
+import akka.util.Timeout
+import scala.concurrent.duration._
 
 /**
  * The TabletRequestRouter uses a round-robin system
@@ -13,6 +17,10 @@ import scala.util.Random
  * to one of the two Frontend servers. It also manages the creation 
  * and restarting of workers.
  */
+object RequestRouter {
+  def apply(server:IndexedSeq[ActorRef]) = Props(new RequestRouter(server))
+}
+
 class RequestRouter(val servers:IndexedSeq[ActorRef]) extends Actor {
   var router = {
     val routees = Vector.fill(5) {
@@ -50,5 +58,22 @@ class RequestWorker(val servers:IndexedSeq[ActorRef]) extends Actor {
   def receive: Actor.Receive = {
     case wm:WriteMessage => servers.head.tell(wm, sender())
     case message => routee.tell(message, sender())    
+  }
+}
+
+object RequestRouterProcess {
+  def main(args:Array[String]) {
+    val serverIds = args(0).split("|").toIndexedSeq
+    val remote = args(1)
+    implicit val timeout = Timeout(600.seconds)
+
+
+    val system = ActorSystem("router", ConfigFactory.load("router"))
+
+    val servers = serverIds.map { id =>
+      Await.result(system.actorSelection(remote + s"/user/frontend-$id").resolveOne(), 600.seconds)
+    }
+
+    val router = system.actorOf(RequestRouter(servers))
   }
 }

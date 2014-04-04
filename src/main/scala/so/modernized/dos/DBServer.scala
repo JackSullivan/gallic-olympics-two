@@ -21,15 +21,12 @@ trait DBServer extends SubclassableActor {
 }
 
 object ConcreteDB {
-  def apply(teamNames:Iterable[String], eventNames:Iterable[String], id:Int, franchise:ActorRef, manager:ActorRef) = Props(new ConcreteDB(teamNames, eventNames, id, franchise, manager))
+  def apply(teamNames:Iterable[String], eventNames:Iterable[String], id:Int, franchise:ActorRef, manager:ActorRef, vcManager:ActorRef) = Props(new ConcreteDB(teamNames, eventNames, id, franchise, manager, vcManager))
 }
 
-class ConcreteDB(teamNames:Iterable[String], eventNames:Iterable[String], val id:Int, val franchise:ActorRef, val manager:ActorRef) extends DBServer with Elector with SynchedClock {
-
-
+class ConcreteDB(teamNames:Iterable[String], eventNames:Iterable[String], val id:Int, val franchise:ActorRef, val manager:ActorRef, val vcManager:ActorRef) extends DBServer with Elector with SynchedClock with VectorClockableActor {
   val teams = context.actorOf(TeamRoster(teamNames))
   val events = context.actorOf(EventRoster(eventNames))
-
 }
 
 object DBProcess {
@@ -43,8 +40,9 @@ object DBProcess {
 
     val franchise = system.actorOf(Props[Franchise], "franchise")
     val manager = system.actorOf(Props[SynchManager], "sync-manager")
+    val vcManager = system.actorOf(Props[VectorClockManager], "vc-manager")
 
-    val db = system.actorOf(ConcreteDB(teams, events, id, franchise, manager), "db")
+    val db = system.actorOf(ConcreteDB(teams, events, id, franchise, manager, vcManager), "db")
 
     val syncInbox = Inbox.create(system)
 

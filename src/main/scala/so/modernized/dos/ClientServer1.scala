@@ -9,28 +9,31 @@ import akka.util.Timeout
 import scala.concurrent.duration._
 import scala.concurrent.Await
 import scala.collection.mutable.ArrayBuffer
+import so.modernized.dos.CausalOrderTester.ActorWithVectorClock
 
 /**
  * Created by akobren on 4/4/14.
  */
-
+/*
 object ClientServer1Test {
 
   class ClientServer1 {
-    val id = "cs1"
     val dbaddress = Address("akka.tcp", "testSystem", "127.0.0.1", 2552)
     val clientServer2Address = Address("akka.tcp", "clientserver", "127.0.0.1", 2555)
 
     val system = ActorSystem("clientserver", ConfigFactory.load("clientserver1.conf"))
-    val clientServer = system.actorOf(Props[ActorWithVectorClock], "clientserver")
+
+
+
+    val clientServer = system.actorOf(ActorWithVectorClock(id, ), "clientserver")
 
     val dbserver = system.actorSelection(dbaddress.toString + "/user/dbserver")
     val clientServer2 = system.actorSelection(clientServer2Address.toString + "/user/clientserver")
 
 
     def broadcastMessage(m: String) = {
-      clientServer ! new Send(id, m, dbserver)
-      clientServer ! new Send(id, m, clientServer2)
+      clientServer ! new SendInOrder(m, dbserver)
+      clientServer ! new SendInOrder(m, clientServer2)
     }
 
   }
@@ -48,3 +51,4 @@ object ClientServer1Test {
   }
 
 }
+                                         */

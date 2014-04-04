@@ -7,10 +7,10 @@ import com.typesafe.config.ConfigFactory
 /**
  * Created by akobren on 4/4/14.
  */
+/*
 object ClientServer2Test {
 
   class ClientServer2 {
-    val id = "cs2"
     val dbaddress = Address("akka.tcp", "testSystem", "127.0.0.1", 2552)
     val clientServer1Address = Address("akka.tcp", "clientserver", "127.0.0.1", 2557)
 
@@ -23,8 +23,8 @@ object ClientServer2Test {
     Thread.sleep(2000)
 
     def broadcastMessage(m: String) = {
-      clientserver ! new Send(id, m, dbserver)
-      clientserver ! new Send(id, m, clientServer1)
+      clientserver ! new SendInOrder( m, dbserver)
+      clientserver ! new SendInOrder( m, clientServer1)
     }
 
   }
@@ -41,4 +41,4 @@ object ClientServer2Test {
     //    client2.shutdown()
   }
 
-}
+}       */
