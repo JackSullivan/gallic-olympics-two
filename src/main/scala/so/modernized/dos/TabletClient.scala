@@ -26,7 +26,6 @@ class TabletClient(remoteAddress: Address) {
   println(s"Connecting to remote server at $remote")
 
   private val router = Await.result(system.actorSelection(remote + "/user/router").resolveOne(), 600.seconds)
-  private val subscriber = Await.result(system.actorSelection(remote + "/user/subscriberRoster").resolveOne(), 600.seconds)
   private val printer = system.actorOf(Props[TabletPrinter])
 
   def getScore(event:String) {
@@ -35,29 +34,28 @@ class TabletClient(remoteAddress: Address) {
   def getMedalTally(team:String) {
     router.tell(TeamMessage(team, GetMedalTally(System.currentTimeMillis())), printer)
   }
-  def registerClient(event:String) = {
-    subscriber.tell(Subscribe(event, System.currentTimeMillis()), printer)
-  }
 }
 
 class TabletPrinter extends Actor {
   def receive: Actor.Receive = {
-    case EventScore(event, score, initTime) => {
-      val latency = (System.currentTimeMillis() - initTime)/1000.0
-      println("Event: %s, Score: %s. Response took %.2f secs".format(event, score, latency))
-    }
-    case MedalTally(team, gold, silver, bronze, initTime) => {
-      val latency = (System.currentTimeMillis() - initTime)/1000.0
-      println("Team: %s, Gold: %s, Silver: %s, Bronze: %s. Response took %.2f secs".format(team, gold, silver, bronze, latency))
-    }
-    case UnknownEvent(eventName, initTime) => {
-      val latency = (System.currentTimeMillis() - initTime)/1000.0
+    case TimestampedResponse(timestamp, response) => response match {
+      case EventScore(event, score, initTime) => {
+        val latency = (System.currentTimeMillis() - initTime)/1000.0
+        println("Event: %s, Score: %s. Timestamped %d. Response took %.2f secs".format(event, score, timestamp, latency))
+      }
+      case MedalTally(team, gold, silver, bronze, initTime) => {
+        val latency = (System.currentTimeMillis() - initTime)/1000.0
+        println("Team: %s, Gold: %s, Silver: %s, Bronze: %s. Timestamped %d. Response took %.2f secs".format(team, gold, silver, bronze, timestamp, latency))
+      }
+      case UnknownEvent(eventName, initTime) => {
+        val latency = (System.currentTimeMillis() - initTime)/1000.0
 
-      println("There are not %s competitions at these olympics. Response took %.2f secs".format(eventName, latency))
-    }
-    case UnknownTeam(teamName, initTime) => {
-      val latency = (System.currentTimeMillis() - initTime)/1000.0
-      println("%s is not participating in these olympics. Response took %.2f secs".format(teamName, latency))
+        println("There are not %s competitions at these olympics. Timestamp %d. Response took %.2f secs".format(eventName, timestamp, latency))
+      }
+      case UnknownTeam(teamName, initTime) => {
+        val latency = (System.currentTimeMillis() - initTime)/1000.0
+        println("%s is not participating in these olympics. Timestamp %d. Response took %.2f secs".format(teamName, timestamp, latency))
+      }
     }
   }
 }
@@ -85,7 +83,6 @@ object TabletClient {
     val client = new TabletClient(olympics)
 
     val cacofonix = new CacofonixClient(olympics)
-    client.registerClient("Curling")
 
     cacofonix.setScore("Curling", "Gaul 1, Rome 2, Carthage 0")
     cacofonix.incrementMedalTally("Lacadaemon", Gold)
@@ -107,7 +104,6 @@ object TabletClient {
     def sample(strs:IndexedSeq[String]):String = strs(rand.nextInt(strs.size))
 
     val tablet = new TabletClient(address)
-    tablet.registerClient(sample(events))
     (0 to rand.nextInt(20)).foreach { _ =>
       Thread.sleep(freq)
       rand.nextInt(2) match {

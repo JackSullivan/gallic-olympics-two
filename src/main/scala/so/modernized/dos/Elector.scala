@@ -39,7 +39,10 @@ trait Franchise {
 
   def everyone:Iterable[ActorRef] = idMap.map(_._2)
 
-  def election {idMap.head._2 ! CallElection}
+  def election:(ActorRef, Iterable[ActorRef]) = {
+    implicit val timeout = new Timeout(600.seconds)
+    Await.result(idMap.head._2 ? CallElection, 600.seconds).asInstanceOf[(ActorRef, Iterable[ActorRef])]
+  }
 }
 
 trait Elector extends SubclassableActor {
@@ -52,9 +55,13 @@ trait Elector extends SubclassableActor {
     case Some(w) => w
     case None => throw new Exception("No winner set")
   }
+  private var electionCallerOpt:Option[ActorRef] = None
 
   addReceiver {
-    case CallElection => higherIds.foreach {_ ! LeaderElection(id)}
+    case CallElection => {
+      electionCallerOpt = Some(sender())
+      higherIds.foreach {_ ! LeaderElection(id)}
+    }
     case LeaderElection(callerId) => {
       println("%s received LeaderElection from %s".format(context.self, sender))
       if(callerId < id) {
@@ -83,6 +90,10 @@ trait Elector extends SubclassableActor {
     case IWonElection(winnerId) => {
       println("%s received IWonElection from %s".format(context.self, sender))
       winner = Some(sender())
+      electionCallerOpt match {
+        case Some(electionCaller) => electionCaller ! (winner.get, franchise.everyone.filter(_ != winner.get))
+        case None => Unit
+      }
     }
     case OkElection => {
       println("%s received OkElection".format(context.self))

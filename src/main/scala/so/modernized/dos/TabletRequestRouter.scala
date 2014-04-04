@@ -48,16 +48,21 @@ class TabletRequestWorker extends Actor {
 case class ClientRequest(request:AnyRef)
 case class DBRequest(message:AnyRef, finalRoutee:ActorRef, serverRoutee:ActorRef)
 case class DBResponse(response:AnyRef, finalRoutee:ActorRef, serverRoutee:ActorRef)
+case class TimestampedResponse(timestamp:Long, response:AnyRef)
 
 /**
- * The FrontEndServer trait routes read requests from
+ * The FrontEndServer trait routes read requests from table clients (and from Cacofonix
+ * to the backend DBServer process, wrapping in such a way as to preserve information about
+ * both the server through which it came and the original client to route it to.
  */
 trait FrontEndServer extends SubclassableActor {
   def dbPath:ActorRef
 
+  def getTimestamp:Long
+
   addReceiver {
     case ClientRequest(message) => dbPath ! DBRequest(message, sender(), context.self)
-    case DBResponse(response, routee, _) => routee ! response
+    case DBResponse(response, routee, _) => routee ! TimestampedResponse(getTimestamp, response)
   }
 }
 
