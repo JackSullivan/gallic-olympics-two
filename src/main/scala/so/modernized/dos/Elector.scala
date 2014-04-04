@@ -1,34 +1,38 @@
 package so.modernized.dos
 
-import akka.actor.{ActorSystem, Props, ActorRef, Actor}
+import akka.actor._
 import akka.pattern.ask
 import scala.concurrent.duration._
-import scala.concurrent.{Await, Future}
-import scala.concurrent.ExecutionContext.Implicits.global
-import akka.routing.Broadcast
+import scala.concurrent.Await
 import scala.collection.mutable
 import com.typesafe.config.ConfigFactory
 import akka.util.Timeout
 
 
-case object CallElection
 case object OkElection
 case class LeaderElection(id:Int)
 case class IWonElection(id:Int)
 
+case class AddElector(id:Int)
+case class GetHigherIds(id:Int)
+case class GetLowerIds(id:Int)
+case object Enfranchisement
+case object GetLeader
+case class TheLeader(id:Int)
+
 /**
  * @author John Sullivan
  */
-trait Franchise {
+class Franchise extends Actor {
 
   private var idMap = mutable.ArrayBuffer[(Int, ActorRef)]()
 
-  def addElector(id:Int, elector:ActorRef) {
+  private def addElector(id:Int, elector:ActorRef) {
     idMap += id -> elector
     idMap = idMap.sortBy(_._1) // sortBy produces a new sequence
   }
 
-  def getHigherIds(id:Int) = {
+  private def getHigherIds(id:Int) = {
     val highSplit = idMap.splitAt(id)._2.map(_._2)
     if(highSplit.isEmpty) {
       highSplit
@@ -36,64 +40,85 @@ trait Franchise {
       highSplit.tail
     }
   }
+  private def getLowerIds(id:Int) = idMap.splitAt(id)._1.map(_._2)
 
-  def everyone:Iterable[ActorRef] = idMap.map(_._2)
 
-  def election:(ActorRef, Iterable[ActorRef]) = {
-    implicit val timeout = new Timeout(600.seconds)
-    Await.result(idMap.head._2 ? CallElection, 600.seconds).asInstanceOf[(ActorRef, Iterable[ActorRef])]
+  def receive = {
+    case AddElector(id) => {
+      println("added %s to the electorate".format(sender()))
+      addElector(id, sender())
+      sender() ! Enfranchisement
+    }
+    case GetHigherIds(id) => sender() ! getHigherIds(id)
+    case GetLowerIds(id) => sender() ! getLowerIds(id)
   }
+
 }
 
 trait Elector extends SubclassableActor {
-  def franchise:Franchise
+  def franchise:ActorRef
   def id:Int
-  def higherIds:Iterable[ActorRef] = franchise.getHigherIds(id)
-  protected var winner:Option[ActorRef] = None
-
-  def getLeader:ActorRef = winner match {
-    case Some(w) => w
-    case None => throw new Exception("No winner set")
+  def higherIds:Iterable[ActorRef] = {
+    implicit val timeout = new Timeout(600.seconds)
+    Await.result(franchise ? GetHigherIds(id), 600.seconds).asInstanceOf[Iterable[ActorRef]]
   }
-  private var electionCallerOpt:Option[ActorRef] = None
+  def lowerIds:Iterable[ActorRef] = {
+    implicit val timeout = new Timeout(600.seconds)
+    Await.result(franchise ? GetLowerIds(id), 600.seconds).asInstanceOf[Iterable[ActorRef]]
+  }
+  protected var winnerId:Option[Int] = None
+  private var requesterOpt:Option[ActorRef] = None
+
+  franchise ! AddElector(id)
 
   addReceiver {
-    case CallElection => {
-      electionCallerOpt = Some(sender())
-      higherIds.foreach {_ ! LeaderElection(id)}
+    case GetLeader => {
+      println("%s received GetLeader from %s".format(context.self, sender()))
+      winnerId match {
+        case Some(wId) => sender() ! TheLeader(wId)
+        case None => {
+          println("%s sending LeaderElection to %s".format(context.self, higherIds))
+          requesterOpt = Some(sender())
+          higherIds.foreach(_ ! LeaderElection(id))
+        }
+      }
     }
     case LeaderElection(callerId) => {
-      println("%s received LeaderElection from %s".format(context.self, sender))
+      println("%s received LeaderElection from %s".format(context.self, sender()))
       if(callerId < id) {
-        println("%s sending OkElection to %s".format(context.self, sender))
+        println("%s sending OkElection to %s".format(context.self, sender()))
         sender ! OkElection
       }
-      println("%d sending LeaderElection to %d higher ids".format(context.self, higherIds.size))
+      println("%s sending LeaderElection to %d higher ids".format(context.self, higherIds.size))
       if(higherIds.size == 0) {
-        franchise.everyone.foreach { elector =>
+        lowerIds.foreach { elector =>
           elector ! IWonElection(id)
         }
       } else {
+
         val futures = higherIds.map{ ref =>
           ask(ref, LeaderElection(id))(5.seconds)
         }
-        Thread.sleep(5005)
         val higherUpExists = futures.flatMap{_.value.map(_.isSuccess)}.foldLeft(false)(_ || _)
         if (!higherUpExists) {
           println("%s is the winner!".format(context.self))
-          franchise.everyone.foreach { elector =>
+          context.self ! TheLeader(id)
+          lowerIds.foreach { elector =>
             elector ! IWonElection(id)
           }
         }
       }
     }
-    case IWonElection(winnerId) => {
-      println("%s received IWonElection from %s".format(context.self, sender))
-      winner = Some(sender())
-      electionCallerOpt match {
-        case Some(electionCaller) => electionCaller ! (winner.get, franchise.everyone.filter(_ != winner.get))
+    case IWonElection(wId) => {
+      println("%s received IWonElection from %s".format(context.self, sender()))
+      requesterOpt match {
+        case Some(requester) => {
+          requester ! TheLeader(wId)
+          requesterOpt = None
+        }
         case None => Unit
       }
+      winnerId = Some(wId)
     }
     case OkElection => {
       println("%s received OkElection".format(context.self))
@@ -105,54 +130,38 @@ trait Elector extends SubclassableActor {
 object ElectorTest {
 
   object TestFranchise extends Franchise
-  class TestElector(val id:Int) extends Elector {
-    val electorType = "test"
-    val franchise = TestFranchise
-
-    franchise.addElector(id, this.self)
-
-    addReceiver{
-      case "winner set?" => sender ! winner.isDefined
-      case "show winner" => sender ! winner.get
-      case "call election" => sender ! getLeader
-      case "get id" => sender ! id
-    }
-  }
+  class TestElector(val id:Int, val franchise:ActorRef) extends Elector
   object TestElector {
-    def apply(id:Int) = Props(new TestElector(id))
+    def apply(id:Int, franchise:ActorRef) = Props(new TestElector(id, franchise))
+  }
+
+  class ResultPrinter extends Actor{
+    def receive = {
+      case TheLeader(id) => println("Elected %d as leader".format(id))
+    }
   }
 
   def main(args:Array[String]) {
     val system = ActorSystem("elector-test", ConfigFactory.load("server"))
     implicit val timeout = new Timeout(5.seconds)
 
-    val e1 = system.actorOf(TestElector(0), "test0")
-    val e2 = system.actorOf(TestElector(1), "test1")
-    val e3 = system.actorOf(TestElector(2), "test2")
 
-    val winnerSet1 = Await.result(e1 ? "winner set?", 5.seconds)
-    val winnerSet2 = Await.result(e2 ? "winner set?", 5.seconds)
-    val winnerSet3 = Await.result(e3 ? "winner set?", 5.seconds)
+    val franchise = system.actorOf(Props[Franchise], "franchise")
+    val e1 = system.actorOf(TestElector(0, franchise), "test0")
+    val e2 = system.actorOf(TestElector(1, franchise), "test1")
+    val e3 = system.actorOf(TestElector(2, franchise), "test2")
 
-    println("winner is set e1: %s" format winnerSet1)
-    println("winner is set e2: %s" format winnerSet2)
-    println("winner is set e3: %s" format winnerSet3)
+    Thread.sleep(2000)
 
-    println("0 higherIds: %s".format(TestFranchise.getHigherIds(0)))
-    println("1 higherIds: %s".format(TestFranchise.getHigherIds(1)))
-    println("2 higherIds: %s".format(TestFranchise.getHigherIds(2)))
+    val inbox = Inbox.create(system)
 
-    TestFranchise.election
+    inbox.send(e1, GetLeader)
 
-    Thread.sleep(10000)
-    println("Ok well I'm going anyway")
+    val TheLeader(leaderId) = inbox.receive(600.seconds).asInstanceOf[TheLeader]
 
-    val elected1 = Await.result(e1 ? "call election", 5.seconds).asInstanceOf[ActorRef]
-    println("%s has %s as it's leader".format(e1, elected1))
-    val elected2 = Await.result(e2 ? "call election", 5.seconds).asInstanceOf[ActorRef]
-    println("%s has %s as it's leader".format(e2, elected2))
-    val elected3 = Await.result(e3 ? "call election", 5.seconds).asInstanceOf[ActorRef]
-    println("%s has %s as it's leader".format(e3, elected3))
+
+    println("Elected %d as leader".format(leaderId))
+    Thread.sleep(1000)
 
 
     system.shutdown()
