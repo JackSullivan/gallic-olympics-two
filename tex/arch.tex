@@ -122,41 +122,45 @@ to reason about their vector clocks and respond to requests on a single
 thread.  We could improve our implementation by multithreading our servers.
 
 \section{Results}
-In our first experiment, we ran our code using 1, 5 and 10 clients
-each with a rate of one request per .5 seconds and measured the min,
-max and average response times.
+We ran our code using 5, 10 and 15 clients each with a rate of one
+request per .01 seconds and measured the min, max and average response
+times.
 
 \begin{tabular}{c|c|c|c}
   NUM CLIENTS & MIN & MAX & AVG \\
   \hline
-  1  & 0.01s & 0.02s & 0.01385s \\
-  5  & 0.01s & 0.03s & 0.01342s \\
-  10 & 0.01s & 0.12s & 0.01475s \\
+  5  & 0.06s & 0.33s & 0.19743s \\
+  10 & 0.05s & 0.8s  & 0.46895s \\
+  15 & 0.02s & 0.97s & 0.54663s \\
 \end{tabular}
 
 In our second experiment we ran our code using 5 clients with .01, .1
-and 0.4 seconds between requests and measured the min, max and
+and 0.5 seconds between requests and measured the min, max and
 average response times.
-
 
 \begin{tabular}{c|c|c|c}
   REQUEST FREQ. & MIN & MAX & AVG \\
   \hline
-  0.01s & 0.01s & 0.3s  & 0.11667s \\
-  0.1s  & 0.01s & 0.07s & 0.01266s \\
-  0.4s  & 0.01s & 0.06s & 0.01369s \\
+  0.01s & 0.06s & 0.33s & 0.19743s \\
+  0.1s  & 0.01s & 0.22s & 0.03533s \\
+  0.5s  & 0.01s & 0.04s & 0.01343s \\
 \end{tabular}
 
-As we observe, adding more clients seems to increase average
-latency.  However, there is no real difference between having 1 client
-and 5 clients.  We hypothesize that adding a tremendous number of
-clients would have a serious effect on the latency.
+As we observe, adding more clients seems to increase average latency.
+There is a significant difference in average latency (2.4x) when we
+increase from 5 to 10 clients.  there is less of a relative difference
+when we increase to 10 clients. Surprisingly, the minimum latency
+decreases in these runs. We hypothesize that this could be due to
+other things occuring on the network while running our tests or some
+noise related to our leader elections.
 
 Also, we observe that having the clients make requests at higher
-frequencies severely affects the latency.  Again, there is not much
-difference between a request rate of 0.4s and 0.1s however, when we
-increase the request rate by an order of magnitude we see that the
-average latency per request increases substantially.
+frequencies severely affects the latency.  As we flood the network
+with more requests, things drastically slow down.  When we cut our
+between request wait time by 5 (from .5s to .1s) we experience a 3x
+average latency increase (3x slower to get a response).  When we again
+reduce our wait time by a factor of 10 (from .1s to .01s) we see a
+5.5x slow down.
 
 \section{Software}
 Like Lab 1, we've built our system on top of the Akka \emph{actors}
