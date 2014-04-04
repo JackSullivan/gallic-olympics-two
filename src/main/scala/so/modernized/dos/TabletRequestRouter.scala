@@ -46,8 +46,8 @@ class TabletRequestWorker extends Actor {
 }
 
 case class ClientRequest(request:AnyRef)
-case class DBRequest(message:AnyRef, routee:ActorRef)
-case class DBResponse(response:AnyRef, routee:ActorRef)
+case class DBRequest(message:AnyRef, finalRoutee:ActorRef, serverRoutee:ActorRef)
+case class DBResponse(response:AnyRef, finalRoutee:ActorRef, serverRoutee:ActorRef)
 
 /**
  * The FrontEndServer trait routes read requests from
@@ -56,8 +56,8 @@ trait FrontEndServer extends SubclassableActor {
   def dbPath:ActorRef
 
   addReceiver {
-    case ClientRequest(message) => dbPath ! DBRequest(message, sender())
-    case DBResponse(response, routee) => routee ! response
+    case ClientRequest(message) => dbPath ! DBRequest(message, sender(), context.self)
+    case DBResponse(response, routee, _) => routee ! response
   }
 }
 
@@ -66,10 +66,10 @@ trait DBServer extends SubclassableActor {
   def events:ActorRef
 
   addReceiver{
-    case DBRequest(request, routee) => request match {
-      case tm:TeamMessage => teams ! DBRequest(tm, routee)
-      case em:EventMessage => events ! DBRequest(em, routee)
+    case DBRequest(request, routee, server) => request match {
+      case tm:TeamMessage => teams ! DBRequest(tm, routee, server)
+      case em:EventMessage => events ! DBRequest(em, routee, server)
     }
-    case DBResponse(response, routee) => routee ! response
+    case DBResponse(response, routee, serverRoutee) => serverRoutee ! DBResponse(response, routee, serverRoutee)
   }
 }
